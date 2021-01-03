@@ -295,8 +295,10 @@ static void addcommand(script_t *script, double basetime, scriptcmd_t *sc)
                     // Expand macro here.
                     macro = findsym(&(script->macros),((idlist_t *) opt->lvalue)->idstr);
                     if (macro) {
-                        printf("Expanding macro %s\n",macro->name);
                         commands1(script, cmd->from, (node_t *) macro->pvalue);
+                    } else {
+                        printf("Warning: Macro '%s' not found\n",
+                               ((idlist_t *) opt->lvalue)->idstr);
                     }
                     // but this is not really a command of its own.
                     free(cmd);
