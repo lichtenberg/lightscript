@@ -13,6 +13,7 @@
  * lightscript stuff
  */
 
+#include <sys/time.h>
 #include "queues.h"
 
 
@@ -173,6 +174,14 @@ typedef struct script_s {
 
     // schedule
     dqueue_t schedule;
+
+    // Time
+    time_t epoch;
+    double start_offset;
+
+    // Arduino device
+    char *device_name;
+    int device;
 } script_t;
 
 void initscript(script_t *script);
@@ -184,7 +193,11 @@ void printsymtab(script_t *script);
 
 void genschedule(script_t *script);
 
+symbol_t *findsym(dqueue_t *tab, char *str);
 
 
 unsigned int getsymmask(symbol_t *sym);
 unsigned int getsymval(symbol_t *sym);
+
+void play_script(script_t *script);
+void printsched1(schedcmd_t * acmd);

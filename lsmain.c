@@ -16,6 +16,7 @@
 #include <assert.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <errno.h>
 #include "lightscript.h"
 
@@ -36,6 +37,7 @@ static void usage(void)
     fprintf(stderr,"Usage: lightscript [-c configfile] [-v] script-file\n\n");
     fprintf(stderr,"    -c configfile       Specifies the name of a configuration file\n");
     fprintf(stderr,"    -v                  Print diagnostic output\n");
+    fprintf(stderr,"    -p device           Play back the events to specifeid Arduino device\n");
     fprintf(stderr,"    script-file         Name of script file to process\n");
     fprintf(stderr,"\n");
     fprintf(stderr,"    If not specified, and 'lightscript.cfg' exists, this file will be processed\n");
@@ -76,6 +78,15 @@ static node_t *parse_file(char *filename)
     return tree;
 }
 
+double get_time(void)
+{
+    struct timeval tv;
+
+    gettimeofday(&tv,NULL);
+
+    return ((double) tv.tv_sec + ((double) tv.tv_usec)/1000000.0);
+}
+
 
 int main(int argc,char *argv[])
 {
@@ -85,10 +96,13 @@ int main(int argc,char *argv[])
     int userconfig = 0;
     char ch;
     struct stat statbuf;
+    char *playdevice = NULL;
+
+
 
     initscript(&script);
 
-    while ((ch = getopt(argc,argv,"c:v")) != -1) {
+    while ((ch = getopt(argc,argv,"c:vp:")) != -1) {
         switch (ch) {
             case 'c':
                 configfilename = optarg;
@@ -97,8 +111,13 @@ int main(int argc,char *argv[])
             case 'v':
                 debug = 1;
                 break;
+            case 'p':
+                playdevice = optarg;
+                break;
         }
     }
+
+    script.device_name = playdevice;
     
     // Skip over options, what's left ar bare args.
     argc -= optind;
@@ -156,6 +175,10 @@ int main(int argc,char *argv[])
 
     printf("* Generating schedule\n");
     genschedule(&script);
+
+    if (playdevice) {
+        play_script(&script);
+    }
     
     return 0;
 }
@@ -169,6 +192,10 @@ void initscript(script_t *script)
     dq_init(&(script->macros));
     dq_init(&(script->commands));
     dq_init(&(script->schedule));
+
+    // Set the epoch (the start of 'time')
+    time(&script->epoch);
+    script->start_offset = 0.1;
 }
 
 
@@ -268,16 +295,22 @@ static char *maskstr(char *str,uint32_t m)
     return str;
 }
 
+void printsched1(schedcmd_t * acmd)
+{
+    char tmpstr[17];
+    printf("Time %6.3f | anim %3u | speed %5u | strips %s\n",acmd->time,acmd->animation,acmd->speed, maskstr(tmpstr,acmd->stripmask));
+}
+
+
 void dumpschedule(script_t *script)
 {
     dqueue_t *dq = script->schedule.dq_next;
-    char tmpstr[17];
 
     while (dq != &(script->schedule)) {
         schedcmd_t *acmd = (schedcmd_t *) dq;
 
-        printf("Time %6.3f anim %3u strips %s\n",acmd->time,acmd->animation,maskstr(tmpstr,acmd->stripmask));
-        
+        printsched1(acmd);
+
         dq = dq->dq_next;
     }
 

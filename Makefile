@@ -1,6 +1,6 @@
 
 
-OBJS = lsmain.o lightscript.tab.o lightscript.yy.o symtab.o parsefuncs.o
+OBJS = lsmain.o lightscript.tab.o lightscript.yy.o symtab.o parsefuncs.o lsplayback.o
 
 %.o : %.c
 	clang -c -o $@ $<
@@ -19,6 +19,8 @@ lsmain.c : lightscript.h
 symtab.c : lightscript.h
 
 parsefuncs.c : lightscript.h
+
+lsplayback.c : lightscript.h
 
 clean :
 	rm -f lightscript $(OBJS) lightscript.yy.c lightscript.tab.c lightscript.tab.h

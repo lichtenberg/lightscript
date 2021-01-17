@@ -17,6 +17,7 @@
 #include <assert.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <errno.h>
 #include "lightscript.h"
 
