@@ -25,7 +25,7 @@
 %token <w> tWHOLE
 %token <str> tIDENT tSTRING
 
-%token tMUSIC tFROM tTO tAT tDO tON tCOUNT tIDLE tSPEED tCASCADE tDELAY tBRIGHTNESS tDEFINE tAS tMACRO tPALETTE
+%token tMUSIC tFROM tTO tAT tDO tON tCOUNT tIDLE tSPEED tCASCADE tDELAY tBRIGHTNESS tDEFINE tAS tMACRO tPALETTE tREVERSE
 
 %type <n> idlist top optlist option scriptcmd scriptlist
 
@@ -65,6 +65,7 @@ option : tON idlist  { $$ = newoption_idl(oON, $2); }
     | tSPEED tWHOLE { $$ = newoption_w(oSPEED, $2); }
     | tCOUNT tWHOLE { $$ = newoption_w(oCOUNT, $2); }
     | tPALETTE tWHOLE { $$ = newoption_w(oPALETTE, $2); }
+    | tREVERSE { $$ = newoption_w(oREVERSE, 0); }
     ;
 
 optlist : 

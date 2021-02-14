@@ -42,6 +42,7 @@ whitespace [ ]
 "macro"         return tMACRO;
 "as"            return tAS;
 "palette"       return tPALETTE;
+"reverse"       return tREVERSE;
 "{"             return '{';
 "}"             return '}';
 \;              return ';';

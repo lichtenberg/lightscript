@@ -12,6 +12,7 @@ enum {
     tCOMMA,
     tCASCADE,
     tBRIGHTNESS,
+    tREVERSE,
     
     tIDENT,
     tFLOAT,

@@ -38,7 +38,8 @@ enum {
     oBRIGHTNESS,
     oCOUNT,
     oPALETTE,
-    oMACRO
+    oMACRO,
+    oREVERSE
 };
 
 enum {
@@ -145,6 +146,7 @@ typedef struct command_s {
     unsigned int count;
     unsigned int brightness;
     unsigned int palette;
+    unsigned int direction;
     double delay;
     double from, to;
 } command_t;
@@ -157,6 +159,7 @@ typedef struct schedcmd_s {
     unsigned int speed;
     unsigned int brightness;
     unsigned int palette;
+    unsigned int direction;
 } schedcmd_t;
 
 typedef struct script_s {
@@ -179,6 +182,9 @@ typedef struct script_s {
     time_t epoch;
     double start_offset;
 
+    // Start cue time
+    double start_cue;
+
     // Arduino device
     char *device_name;
     int device;
@@ -199,5 +205,5 @@ symbol_t *findsym(dqueue_t *tab, char *str);
 unsigned int getsymmask(symbol_t *sym);
 unsigned int getsymval(symbol_t *sym);
 
-void play_script(script_t *script);
+void play_script(script_t *script,int how);
 void printsched1(schedcmd_t * acmd);

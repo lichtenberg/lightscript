@@ -18,6 +18,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <errno.h>
+#include <dirent.h>
 #include "lightscript.h"
 
 extern void yyparse(void);
@@ -32,16 +33,77 @@ script_t script;
 char *inpfilename = "input";
 int debug = 0;
 
+
+static char *findarduino(void)
+{
+    DIR *dir;
+    struct dirent *dp;
+    char *devicenames[10];
+    int picked;
+    int devcnt = 0;
+    int i;
+    char devname[256];
+
+    dir = opendir("/dev");              // We're going to look through /dev for files
+    while ((dp = readdir(dir)) != NULL) {
+        if ((devcnt < 10) && (strstr(dp->d_name,"cu.usbmodem"))) {
+            devicenames[devcnt++] = strdup(dp->d_name);
+        }
+    }
+    closedir(dir);
+
+
+    if (devcnt == 1) {
+        picked = 0;
+        printf("[Found only one device, trying /dev/%s]\n",devicenames[0]);
+    } else {
+        printf("More than one possible device found.  Please choose one.\n");
+        for (i = 0; i < devcnt; i++) {
+            printf("  %d: /dev/%s\n",i,devicenames[i]);
+        }
+        for (;;) {
+            printf("Choose the one that is connected to your Arduino:  ");
+            fgets(devname,sizeof(devname),stdin);
+            picked = atoi(devname);
+            if ((picked < 0) || (picked >= devcnt)) continue;
+            break;
+        }
+    }
+
+
+    sprintf(devname,"/dev/%s",devicenames[picked]);
+
+    for (i = 0; i < devcnt; i++) {
+        free(devicenames[i]);
+    }
+    
+    return strdup(devname);
+
+}
+
 static void usage(void)
 {
-    fprintf(stderr,"Usage: lightscript [-c configfile] [-v] script-file\n\n");
+    fprintf(stderr,"Usage: lightscript [-c configfile] [-v] [-p device] command script-file\n\n");
     fprintf(stderr,"    -c configfile       Specifies the name of a configuration file\n");
+    fprintf(stderr,"    -p device           Specifies the name of the Arduino device\n");
+    fprintf(stderr,"    -s time             Starting time for playback\n");
     fprintf(stderr,"    -v                  Print diagnostic output\n");
-    fprintf(stderr,"    -p device           Play back the events to specifeid Arduino device\n");
+    fprintf(stderr,"\n");
+    fprintf(stderr,"  Commands:\n");
+    fprintf(stderr,"\n");
+    fprintf(stderr,"      check     Check but do not play the script\n");
+    fprintf(stderr,"      play      Check, then play the script\n");
+    fprintf(stderr,"      mplay     Check, then play the script with background music\n");
+    fprintf(stderr,"\n");
     fprintf(stderr,"    script-file         Name of script file to process\n");
     fprintf(stderr,"\n");
     fprintf(stderr,"    If not specified, and 'lightscript.cfg' exists, this file will be processed\n");
     fprintf(stderr,"    as a configuration file if '-c' is not specified\n");
+    fprintf(stderr,"\n");
+    fprintf(stderr,"Example usage\n");
+    fprintf(stderr,"\n");
+    fprintf(stderr,"    ./lightscript play test1.ls          Play test1.ls on the LED system\n");
+    fprintf(stderr,"    ./lightscript check test1.ls         Check for syntax errors but do not play\n");
     fprintf(stderr,"\n");
     exit(1);
 
@@ -88,6 +150,10 @@ double get_time(void)
 }
 
 
+#define CMD_PLAY        1
+#define CMD_CHECK       2
+#define CMD_MPLAY       3
+
 int main(int argc,char *argv[])
 {
     FILE *str = stdin;
@@ -97,12 +163,13 @@ int main(int argc,char *argv[])
     char ch;
     struct stat statbuf;
     char *playdevice = NULL;
-
-
+    char *command;
+    int cmdnum = 0;
+    double start_cue = 0;
 
     initscript(&script);
 
-    while ((ch = getopt(argc,argv,"c:vp:")) != -1) {
+    while ((ch = getopt(argc,argv,"c:vp:s:")) != -1) {
         switch (ch) {
             case 'c':
                 configfilename = optarg;
@@ -114,23 +181,41 @@ int main(int argc,char *argv[])
             case 'p':
                 playdevice = optarg;
                 break;
+            case 's':
+                start_cue = atof(optarg);
+                break;
         }
     }
 
-    script.device_name = playdevice;
-    
     // Skip over options, what's left ar bare args.
     argc -= optind;
     argv += optind;
 
-    if (argc < 1) {
+    if (argc < 2) {
         usage();
 
     }
 
-    scriptfilename = argv[0];
+    command = argv[0];
+    scriptfilename = argv[1];
 
+    if (strcmp(command,"play") == 0) cmdnum = CMD_PLAY;
+    else if (strcmp(command,"check") == 0) cmdnum = CMD_CHECK;
+    else if (strcmp(command,"mplay") == 0) cmdnum = CMD_MPLAY;
+
+    if (cmdnum == 0) {
+        fprintf(stderr,"You must specify a command, 'play', 'mplay', or 'check' before the file name\n");
+        fprintf(stderr,"\n");
+        usage();
+    }
+
+    if (!playdevice && ((cmdnum == CMD_PLAY) || (cmdnum == CMD_MPLAY))) {
+        playdevice = findarduino();
+    }
+
+    script.device_name = playdevice;
     script.configtree = parse_file(configfilename);
+    script.start_cue = start_cue;
 
     if (!script.configtree) {
         fprintf(stderr,"[Proceeding without a config file]\n");
@@ -142,6 +227,7 @@ int main(int argc,char *argv[])
         fprintf(stderr,"Could not read script file.\n");
         exit(1);
     }
+
     
     // First, walk the tree and find all our "defines"
     if (script.configtree) {
@@ -152,6 +238,23 @@ int main(int argc,char *argv[])
     savedefines(&script,script.scripttree);
     printf("* Finding script commands\n");
     savecommands(&script, script.scripttree);
+
+
+    // If we're playing a real music file, the file must exist.
+    if (cmdnum == CMD_MPLAY) {
+        char *mfile = script.musicfile;
+        if (!script.musicfile) {
+            printf("Your script file does not contain a 'music' statement to identify the music file\n");
+            exit(1);
+        }
+        script.musicfile = realpath(script.musicfile,NULL);
+        if (!script.musicfile) {
+            printf("The music file %s in your script was not found\n",mfile);
+            exit(1);
+        }
+        
+    }
+    
 
     if (debug > 0) {
         if (script.configtree) {
@@ -176,8 +279,10 @@ int main(int argc,char *argv[])
     printf("* Generating schedule\n");
     genschedule(&script);
 
-    if (playdevice) {
-        play_script(&script);
+    if (playdevice && (cmdnum == CMD_PLAY)) {
+        play_script(&script, 0);
+    } else if (playdevice && (cmdnum == CMD_MPLAY)) {
+        play_script(&script, 1);
     }
     
     return 0;
@@ -231,6 +336,7 @@ static void schedule_from(script_t *script,double basetime,command_t *cmd)
 
         scmd->time = basetime + t;
         scmd->speed = cmd->speed;
+        scmd->direction = cmd->direction;
         scmd->brightness = cmd->brightness;
         scmd->palette = cmd->palette;
         scmd->animation = getsymval(&(cmd->animations));
@@ -248,6 +354,7 @@ static void schedule_at(script_t *script,double basetime,command_t *cmd)
 
     scmd->time = basetime + cmd->from;
     scmd->speed = cmd->speed;
+    scmd->direction = cmd->direction;
     scmd->brightness = cmd->brightness;
     scmd->palette = cmd->palette;
     scmd->animation = getsymval(&(cmd->animations));
@@ -271,6 +378,7 @@ static void schedule_cascade(script_t *script,double basetime,command_t *cmd)
 
         scmd->time = basetime + t;
         scmd->speed = cmd->speed;
+        scmd->direction = cmd->direction;
         scmd->brightness = cmd->brightness;
         scmd->palette = cmd->palette;
         scmd->animation = getsymval(&(cmd->animations));
@@ -298,7 +406,9 @@ static char *maskstr(char *str,uint32_t m)
 void printsched1(schedcmd_t * acmd)
 {
     char tmpstr[17];
-    printf("Time %6.3f | anim %3u | speed %5u | strips %s\n",acmd->time,acmd->animation,acmd->speed, maskstr(tmpstr,acmd->stripmask));
+    printf("Time %6.3f | anim %3u %c | speed %5u | strips %s\n",acmd->time,acmd->animation,
+           acmd->direction ? 'R' : 'F',
+           acmd->speed, maskstr(tmpstr,acmd->stripmask));
 }
 
 

@@ -327,6 +327,9 @@ static void addcommand(script_t *script, double basetime, scriptcmd_t *sc)
                 case oPALETTE:
                     cmd->palette = opt->wvalue;
                     break;
+                case oREVERSE:
+                    cmd->direction = 1;
+                    break;
                 default:
                     break;
             }

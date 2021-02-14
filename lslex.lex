@@ -44,6 +44,7 @@ letter    [A-Za-z]
 "speed"         emit_kw(tSPEED);
 "cascade"       emit_kw(tCASCADE);
 "brightness"    emit_kw(tBRIGHTNESS);
+"reverse"       emit_kw(tREVERSE);
 
 {letter}({digit}|{letter}|_)*      emit_id(yytext);
 {digit}+\.{digit}*                 emit_double(yytext);
@@ -60,7 +61,7 @@ int yywrap(void)
 }
 
 static char *toknames[] = {"tMUSIC","tFROM","tTO","tDO","tAT","tCOUNT","tIDLE","tWAIT","tSPEED","tCOMMA","tCASCADE",
-    "tBRIGHTNESS",
+                           "tBRIGHTNESS","tREVERSE",
     "tIDENT","tFLOAT","tWHOLE","tSTRING","tNEWLINE"};
 
 static void printtoken(lstoken_t *tok)

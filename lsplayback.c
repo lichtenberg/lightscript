@@ -78,8 +78,13 @@ static void play_events(script_t *script)
         // do the command.
 
         if (now >= cmd->time) {
+            unsigned int anim;
+
+            anim = cmd->animation;
+            if (cmd->direction) anim |= 0x8000;
+            
             printsched1(cmd);
-            send_message(script, cmd->stripmask, cmd->animation, cmd->speed, cmd->palette);
+            send_message(script, cmd->stripmask, anim, cmd->speed, cmd->palette);
 
             dq = dq->dq_next;
         }
@@ -87,9 +92,73 @@ static void play_events(script_t *script)
 
 }
 
+static dqueue_t *musicpos;
+static script_t *curscript;
+
+int player_callback(double now)
+{
+    schedcmd_t *cmd = (schedcmd_t *) musicpos;
+
+    // If the current time is past the script command's time,
+    // do the command.
+
+    if (musicpos == &(curscript->schedule)) {
+        // End of script, stop playing
+        return 0;
+    }
+
+    if (now >= cmd->time) {
+        unsigned int anim;
+
+        anim = cmd->animation;
+        if (cmd->direction) anim |= 0x8000;
+            
+        printsched1(cmd);
+        send_message(curscript, cmd->stripmask, anim, cmd->speed, cmd->palette);
+
+        musicpos = musicpos->dq_next;
+    }
+
+    // Keep going
+    return 1;
+
+}
+
+extern int playMusicFile(const char *name, int (*callback)(double),double start_cue);
+
+static void play_music(script_t *script)
+{
+    curscript = script;
+    musicpos = script->schedule.dq_next;
+
+    // Seek in script to cue point
+
+    if (script->start_cue != 0.0) {
+        while (musicpos != &(curscript->schedule)) {
+            schedcmd_t *cmd = (schedcmd_t *) musicpos;
+            if (cmd->time > script->start_cue) break;
+            musicpos = musicpos->dq_next;
+        }
+
+        // We started past the end of the script, bail.
+        if (musicpos == &(curscript->schedule)) {
+            return;
+        }
+    }
+
+
+    playMusicFile((const char *) script->musicfile, player_callback, script->start_cue);
+}
+
 static void play_idle(script_t *script)
 {
-    symbol_t *sym = findsym(&(script->symbols),script->idleanimation);
+    symbol_t *sym;
+
+    if (script->idleanimation == NULL) {
+        return;         // no idleanimation specified
+    }
+
+    sym = findsym(&(script->symbols),script->idleanimation);
 
     if (sym == NULL) {
         printf("Warning: idle animation '%s' is not valid\n",script->idleanimation);
@@ -101,7 +170,7 @@ static void play_idle(script_t *script)
 }
 
 
-void play_script(script_t *script)
+void play_script(script_t *script, int how)
 {
 
     if (script->device_name != NULL) {
@@ -120,7 +189,11 @@ void play_script(script_t *script)
     printf("\n\n");
     printf("Press ENTER to start playback\n"); getchar();
     
-    play_events(script);
+    if (how == 0) {
+        play_events(script);
+    } else {
+        play_music(script);
+    }
 
     sleep(1);
 
