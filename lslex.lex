@@ -26,6 +26,21 @@
         tok.lst_type = tFLOAT; tok.lst_float = atof(str); tok.lst_whole = 0; tok.lst_str = NULL;
         printtoken(&tok);
     }
+    static inline void emit_timefloat(char *str) {
+        double minutes = 0;
+        double seconds = 0;
+        char *colon = strchr(str,':');
+        if (colon) {
+            *colon++ = '\0';
+            if (*str != ':') minutes = atof(str);
+            seconds = atof(colon);
+        } else {
+            seconds = atof(str);
+        }
+        seconds = minutes*60.0 + seconds;
+        tok.lst_type = tFLOAT; tok.lst_float = atof(str); tok.lst_whole = 0; tok.lst_str = NULL;
+        printtoken(&tok);
+    }
 %}
 
 digit     [0-9]
@@ -48,6 +63,7 @@ letter    [A-Za-z]
 
 {letter}({digit}|{letter}|_)*      emit_id(yytext);
 {digit}+\.{digit}*                 emit_double(yytext);
+{digit}+\:{digit}+\.{digit}+       emit_timefloat(yytext);
 {digit}+                           emit_whole(yytext);
 \".*\"                             emit_string(yytext);
 \/\/.*$                            ;

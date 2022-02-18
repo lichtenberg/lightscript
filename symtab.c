@@ -20,6 +20,24 @@
 
 #include "lightscript.h"
 
+char *findval(dqueue_t *tab, unsigned int val)
+{
+    dqueue_t *qb;
+
+    qb = tab->dq_next;
+
+    while (qb != tab) {
+        symbol_t *sym = (symbol_t *) qb;
+
+        if ((sym->nvalues == 1) && (val == sym->wvalues[0])) {
+            return sym->name;
+        }
+        qb = qb->dq_next;
+    }
+
+    return NULL;
+}
+
 
 symbol_t *findsym(dqueue_t *tab, char *str)
 {
@@ -278,6 +296,8 @@ static void addcommand(script_t *script, double basetime, scriptcmd_t *sc)
     cmd->cmdtype = CMD_AT;
     if (cmd->from != cmd->to) cmd->cmdtype = CMD_FROM;
 
+    cmd->palette = 64;          // Default to RGB palette unless overridden
+
     n = sc->options;
 
     while (n) {
@@ -296,7 +316,15 @@ static void addcommand(script_t *script, double basetime, scriptcmd_t *sc)
                     // Expand macro here.
                     macro = findsym(&(script->macros),((idlist_t *) opt->lvalue)->idstr);
                     if (macro) {
-                        commands1(script, cmd->from, (node_t *) macro->pvalue);
+                        int i;
+                        if (cmd->count <= 1) {
+                            commands1(script, cmd->from, (node_t *) macro->pvalue);
+                        } else {
+                            for (i = 0; i < cmd->count; i++) {
+                                double t = cmd->from + (cmd->to - cmd->from) * ((double) i / (double) (cmd->count-1));
+                                commands1(script, t, (node_t *) macro->pvalue);
+                            }
+                        }
                     } else {
                         printf("Warning: Macro '%s' not found\n",
                                ((idlist_t *) opt->lvalue)->idstr);
@@ -324,8 +352,28 @@ static void addcommand(script_t *script, double basetime, scriptcmd_t *sc)
                 case oCOUNT:
                     cmd->count = opt->wvalue;
                     break;
+                case oOPTION:
+                    cmd->option = opt->wvalue;
+                    break;
                 case oPALETTE:
-                    cmd->palette = opt->wvalue;
+                case oCOLOR:
+                {
+                    if (opt->lvalue) {
+                        symbol_t *sym;
+                        //printf("Looking up %s\n",((idlist_t *) opt->lvalue)->idstr);
+
+                        sym = findsym(&(script->symbols),((idlist_t *) opt->lvalue)->idstr);
+                        if (sym) cmd->palette = getsymval(sym);
+                    } else {
+                        cmd->palette = opt->wvalue;
+                    }
+                    // If it's a plain color use the top 8 bits to indicate that.
+                    cmd->palette &= 0x00FFFFFF;
+                    if (opt->opttype == oCOLOR) {
+                        cmd->palette |= 0x01000000;
+                    }
+                           
+                }
                     break;
                 case oREVERSE:
                     cmd->direction = 1;
@@ -391,7 +439,7 @@ void printcmdtab(script_t *script)
                cmd->speed,cmd->brightness,cmd->count,cmd->delay);
 
         printf("Strips=[ ");
-        for (i = 0; i < cmd->strips.nvalues; i++) printf("%d ",cmd->strips.wvalues[i]);
+        for (i = 0; i < cmd->strips.nvalues; i++) printf("%d ",cmd->strips.wvalues[i]+1);
         printf("]  Anims=[ ");
         for (i = 0; i < cmd->animations.nvalues; i++) printf("%d ",cmd->animations.wvalues[i]);
         printf("] ");

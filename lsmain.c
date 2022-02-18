@@ -32,7 +32,7 @@ extern node_t *tree;
 script_t script;
 char *inpfilename = "input";
 int debug = 0;
-
+int script_error = 0;
 
 static char *findarduino(void)
 {
@@ -117,6 +117,8 @@ void yyerror(char *str,...)
     fprintf(stderr,"%s(%d) : ",inpfilename,yylineno);
     vfprintf(stderr,str,ap);
     fprintf(stderr,"\n");
+
+    script_error = 1;
 }
 
 
@@ -154,6 +156,42 @@ double get_time(void)
 #define CMD_CHECK       2
 #define CMD_MPLAY       3
 
+
+static double _parsetime(char *str) {
+    double minutes = 0;
+    double seconds = 0;
+    char *colon = strchr(str,':');
+    if (colon) {
+        *colon++ = '\0';
+        if (*str != ':') minutes = atof(str);
+        seconds = atof(colon);
+    } else {
+        seconds = atof(str);
+    }
+    seconds = minutes*60.0 + seconds;
+    return seconds;
+}
+
+static int parse_range(char *str, double *start, double *end)
+{
+    char *x;
+    
+    *end = 0;
+    *start = 0;
+
+    // See if it's just the start, or the start and end
+    if ((x = strchr(str,'-'))) {
+        *x++ = 0;
+        *start = _parsetime(str);
+        *end = _parsetime(x);
+    } else {
+        *start = _parsetime(str);
+    }
+
+    return  1;
+    
+}
+
 int main(int argc,char *argv[])
 {
     FILE *str = stdin;
@@ -165,7 +203,9 @@ int main(int argc,char *argv[])
     char *playdevice = NULL;
     char *command;
     int cmdnum = 0;
+    int skipflag = 0;
     double start_cue = 0;
+    double end_cue = 0;
 
     initscript(&script);
 
@@ -182,7 +222,7 @@ int main(int argc,char *argv[])
                 playdevice = optarg;
                 break;
             case 's':
-                start_cue = atof(optarg);
+                parse_range(optarg,&start_cue,&end_cue);
                 break;
         }
     }
@@ -216,18 +256,33 @@ int main(int argc,char *argv[])
     script.device_name = playdevice;
     script.configtree = parse_file(configfilename);
     script.start_cue = start_cue;
+    script.end_cue = end_cue;
 
     if (!script.configtree) {
         fprintf(stderr,"[Proceeding without a config file]\n");
     }
 
+    yylineno = 0;
+
     script.scripttree = parse_file(scriptfilename);
+
+    if (script_error) {
+        fprintf(stderr,"There was an error in the script file\n");
+        exit(1);
+    }
 
     if (!script.scripttree) {
         fprintf(stderr,"Could not read script file.\n");
         exit(1);
     }
 
+    if (start_cue != 0) printf("Will start playback at %5.2f seconds\n",start_cue);
+    if (end_cue != 0) printf("Will stop playback at %5.2f seconds\n",end_cue);
+
+    if ((end_cue != 0) && (end_cue < start_cue)) {
+        printf("The end of the playback can't be before the beginning!\n");
+        exit(1);
+    }
     
     // First, walk the tree and find all our "defines"
     if (script.configtree) {
@@ -357,6 +412,7 @@ static void schedule_at(script_t *script,double basetime,command_t *cmd)
     scmd->direction = cmd->direction;
     scmd->brightness = cmd->brightness;
     scmd->palette = cmd->palette;
+    scmd->option = cmd->option;
     scmd->animation = getsymval(&(cmd->animations));
     scmd->stripmask = getsymmask(&(cmd->strips));
 
@@ -381,6 +437,7 @@ static void schedule_cascade(script_t *script,double basetime,command_t *cmd)
         scmd->direction = cmd->direction;
         scmd->brightness = cmd->brightness;
         scmd->palette = cmd->palette;
+        scmd->option = cmd->option;
         scmd->animation = getsymval(&(cmd->animations));
 
         // For CASCADE we start each animation on a different strip at a different time.
@@ -396,19 +453,54 @@ static char *maskstr(char *str,uint32_t m)
 {
     int i;
 
-    for (i = 0; i<16; i++) {
-        str[15-i] = ((1 << i) & m) ? "0123456789ABCDEF"[i] : '.';
+    for (i = 0; i<24; i++) {
+        str[23-i] = ((1 << i) & m) ? "123456789ABCDEFGHIJKLMNOP"[i] : '.';
     }
-    str[16] = 0;
+    str[24] = 0;
     return str;
 }
 
-void printsched1(schedcmd_t * acmd)
+static void fmttime(char *dest, double t)
 {
-    char tmpstr[17];
-    printf("Time %6.3f | anim %3u %c | speed %5u | strips %s\n",acmd->time,acmd->animation,
+    unsigned int minutes = (int) (t / 60.0);
+    double seconds = (t - ((double) minutes)*60.0);
+    sprintf(dest,"%2u:%05.02f",
+            minutes,seconds);
+}
+
+static void animname(script_t *script, unsigned int anim, char *buffer)
+{
+    char *name;
+    
+    name = findval(&(script->symbols), anim);
+    if (!name) {
+        sprintf(buffer, "anim %u",anim);
+    } else {
+        strcpy(buffer, name);
+    }
+}
+
+void printsched1(script_t *script, schedcmd_t * acmd)
+{
+    char tmpstr[32];
+    char timestr[32];
+    char colorstr[32];
+    char animstr[40];
+
+    fmttime(timestr,acmd->time);
+
+    if (acmd->palette & 0x1000000) {
+        sprintf(colorstr,"color 0x%06X", acmd->palette & 0x00FFFFFF);
+    } else {
+        sprintf(colorstr,"palette %2u    ",acmd->palette);
+    }
+
+    animname(script, acmd->animation, animstr);
+    
+    printf("Time %8s | %-15.15s %c | speed %5u | option %5u | %s | strips %s\n",timestr,animstr,
            acmd->direction ? 'R' : 'F',
-           acmd->speed, maskstr(tmpstr,acmd->stripmask));
+           acmd->speed, acmd->option,
+           colorstr, maskstr(tmpstr,acmd->stripmask));
 }
 
 
@@ -419,7 +511,7 @@ void dumpschedule(script_t *script)
     while (dq != &(script->schedule)) {
         schedcmd_t *acmd = (schedcmd_t *) dq;
 
-        printsched1(acmd);
+        printsched1(script,acmd);
 
         dq = dq->dq_next;
     }

@@ -37,6 +37,7 @@ node_t *newnode(node_t *l,node_t *r)
     n->left = l;
     n->right = r;
     n->type = nNODE;
+    n->line = yylineno;
 
     return n;
 }
@@ -48,6 +49,7 @@ node_t *newidlist(char *idstr,node_t *rest)
     idl->type = nIDLIST;
     idl->next = rest;
     idl->idstr = idstr;
+    idl->line = yylineno;
 
     return (node_t *) idl;
 }
@@ -59,6 +61,7 @@ node_t *newoption_idl(int opttype, node_t *optval)
     opt->type = nOPTION;
     opt->opttype = opttype;
     opt->lvalue = optval;
+    opt->line = yylineno;
 
     return (node_t *) opt;
 }
@@ -70,6 +73,7 @@ node_t *newoption_w(int opttype, int optval)
     opt->type = nOPTION;
     opt->opttype = opttype;
     opt->wvalue = optval;
+    opt->line = yylineno;
 
     return (node_t *) opt;
 }
@@ -81,6 +85,7 @@ node_t *newoption_f(int opttype, double optval)
     opt->type = nOPTION;
     opt->opttype = opttype;
     opt->fvalue = optval;
+    opt->line = yylineno;
 
     return (node_t *) opt;
 }
@@ -95,6 +100,7 @@ node_t *newcmd_sched(int cmdtype, double from, double to, node_t *opts)
     sc->from = from;
     sc->to = to;
     sc->options = opts;
+    sc->line = yylineno;
 
     return (node_t *) sc;
 }
@@ -106,6 +112,7 @@ node_t *newcmd_str(int cmdtype, char *str)
     sc->type = nSCRIPT;
     sc->cmdtype = cmdtype;
     sc->str = str;
+    sc->line = yylineno;
 
     return (node_t *) sc;
 }
@@ -119,6 +126,7 @@ node_t *newcmd_defidl(char *str, node_t *idl)
     sc->cmdtype = sDEFINE;
     sc->str = str;
     sc->options = idl;
+    sc->line = yylineno;
 
     return (node_t *) sc;
 }
@@ -131,6 +139,7 @@ node_t *newcmd_defmacro(char *str, node_t *idl)
     sc->cmdtype = sMACRO;
     sc->str = str;
     sc->options = idl;
+    sc->line = yylineno;
 
     return (node_t *) sc;
 }
@@ -144,6 +153,7 @@ node_t *newcmd_defval(char *str, int val)
     sc->cmdtype = sDEFINE;
     sc->str = str;
     sc->val = val;
+    sc->line = yylineno;
 
     return (node_t *) sc;
 }
@@ -216,7 +226,7 @@ void printtree(node_t *n, int depth)
         case nSCRIPT:
         {
             scriptcmd_t *sc = (scriptcmd_t *) n;
-            printf("ScriptCmd ");
+            printf("(%d)ScriptCmd" ,sc->line);
             switch (sc->cmdtype) {
                 case sFROM:
                     printf("From %5.3f to %5.3f\n",sc->from,sc->to);

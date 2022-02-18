@@ -11,6 +11,7 @@
 %{
 #include <stdio.h>
 #include "lightscript.h"
+extern int script_error;
 %}
 
 %union {
@@ -25,7 +26,7 @@
 %token <w> tWHOLE
 %token <str> tIDENT tSTRING
 
-%token tMUSIC tFROM tTO tAT tDO tON tCOUNT tIDLE tSPEED tCASCADE tDELAY tBRIGHTNESS tDEFINE tAS tMACRO tPALETTE tREVERSE
+%token tMUSIC tFROM tTO tAT tDO tON tCOUNT tIDLE tSPEED tCASCADE tDELAY tBRIGHTNESS tDEFINE tAS tMACRO tPALETTE tREVERSE tCOLOR tOPTION
 
 %type <n> idlist top optlist option scriptcmd scriptlist
 
@@ -64,7 +65,11 @@ option : tON idlist  { $$ = newoption_idl(oON, $2); }
     | tDELAY tFLOAT { $$ = newoption_f(oDELAY, $2); }
     | tSPEED tWHOLE { $$ = newoption_w(oSPEED, $2); }
     | tCOUNT tWHOLE { $$ = newoption_w(oCOUNT, $2); }
+    | tOPTION tWHOLE { $$ = newoption_w(oOPTION, $2); }
     | tPALETTE tWHOLE { $$ = newoption_w(oPALETTE, $2); }
+    | tPALETTE tIDENT { $$ = newoption_idl(oPALETTE, newidlist($2,NULL)); }
+    | tCOLOR tWHOLE { $$ = newoption_w(oCOLOR, $2); }
+    | tCOLOR tIDENT { $$ = newoption_idl(oCOLOR, newidlist($2,NULL)); }
     | tREVERSE { $$ = newoption_w(oREVERSE, 0); }
     ;
 

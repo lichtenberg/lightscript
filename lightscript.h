@@ -39,7 +39,9 @@ enum {
     oCOUNT,
     oPALETTE,
     oMACRO,
-    oREVERSE
+    oREVERSE,
+    oCOLOR,
+    oOPTION,
 };
 
 enum {
@@ -55,6 +57,7 @@ enum {
 
 typedef struct node_s {
     int type;
+    int line;
     struct node_s *left;
     struct node_s *right;
 } node_t;
@@ -63,6 +66,7 @@ typedef struct node_s {
 
 typedef struct option_s {
     int type;
+    int line;
     int opttype;
     struct node_s *lvalue;
     int wvalue;
@@ -71,6 +75,7 @@ typedef struct option_s {
 
 typedef struct scriptcmd_s {
     int type;
+    int line;
     int cmdtype;
     double from,to;
     struct node_s *options;
@@ -81,6 +86,7 @@ typedef struct scriptcmd_s {
 
 typedef struct idlist_s {
     int type;
+    int line;
     struct node_s *next;
     char *idstr;
 } idlist_t;
@@ -147,6 +153,7 @@ typedef struct command_s {
     unsigned int brightness;
     unsigned int palette;
     unsigned int direction;
+    unsigned int option;
     double delay;
     double from, to;
 } command_t;
@@ -160,6 +167,7 @@ typedef struct schedcmd_s {
     unsigned int brightness;
     unsigned int palette;
     unsigned int direction;
+    unsigned int option;
 } schedcmd_t;
 
 typedef struct script_s {
@@ -184,6 +192,7 @@ typedef struct script_s {
 
     // Start cue time
     double start_cue;
+    double end_cue;
 
     // Arduino device
     char *device_name;
@@ -200,10 +209,11 @@ void printsymtab(script_t *script);
 void genschedule(script_t *script);
 
 symbol_t *findsym(dqueue_t *tab, char *str);
+char *findval(dqueue_t *tab, unsigned int val);
 
 
 unsigned int getsymmask(symbol_t *sym);
 unsigned int getsymval(symbol_t *sym);
 
 void play_script(script_t *script,int how);
-void printsched1(schedcmd_t * acmd);
+void printsched1(script_t *script, schedcmd_t * acmd);
