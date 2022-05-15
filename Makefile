@@ -2,14 +2,18 @@
 
 OBJS = lsmain.o lightscript.tab.o lightscript.yy.o symtab.o parsefuncs.o lsplayback.o musicplayer.o
 
+CFLAGS = -target x86_64-apple-macos10.13
+#CFLAGS =
+
 %.o : %.c
-	clang -c -o $@ $<
+	clang $(CFLAGS) -c -o $@ $<
 
 %.o : %.mm
-	clang -c -o $@ $<
+	clang $(CFLAGS) -c -o $@ $<
 
 lightscript : $(OBJS)
-	clang -o $@ $(OBJS) -framework Foundation -framework AVFoundation
+	clang $(CFLAGS) -o $@ $(OBJS) -framework Foundation -framework AVFoundation
+	codesign -s mlichtenberg@me.com lightscript
 
 lightscript.yy.c : lightscript.lex lightscript.tab.h
 	flex -DECHO -o lightscript.yy.c lightscript.lex
@@ -29,4 +33,4 @@ clean :
 	rm -f lightscript $(OBJS) lightscript.yy.c lightscript.tab.c lightscript.tab.h
 
 zip :
-	zip ../lightscript$(shell date "+%Y%m%d") lightscript *.ls *.cfg
+	zip ../lightscript$(shell date "+%Y%m%d") lightscript *.cfg
