@@ -449,14 +449,15 @@ static void schedule_cascade(script_t *script,double basetime,command_t *cmd)
     
 }
 
+#define MAXSTRIPS 31
 static char *maskstr(char *str,uint32_t m)
 {
     int i;
 
-    for (i = 0; i<24; i++) {
-        str[23-i] = ((1 << i) & m) ? "123456789ABCDEFGHIJKLMNOP"[i] : '.';
+    for (i = 0; i<MAXSTRIPS; i++) {
+        str[(MAXSTRIPS-1)-i] = ((1 << i) & m) ? "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i] : '.';
     }
-    str[24] = 0;
+    str[MAXSTRIPS] = 0;
     return str;
 }
 
@@ -482,7 +483,7 @@ static void animname(script_t *script, unsigned int anim, char *buffer)
 
 void printsched1(script_t *script, schedcmd_t * acmd)
 {
-    char tmpstr[32];
+    char tmpstr[64];
     char timestr[32];
     char colorstr[32];
     char animstr[40];
