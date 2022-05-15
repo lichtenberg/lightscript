@@ -12,7 +12,7 @@ CFLAGS = -target x86_64-apple-macos10.13
 	clang $(CFLAGS) -c -arch x86_64 -arch arm64 -o $@ $<
 
 lightscript : $(OBJS)
-	clang $(CFLAGS) -o $@ $(OBJS) -arch x86_64 -arch armn64 -framework Foundation -framework AVFoundation
+	clang $(CFLAGS) -o $@ $(OBJS) -arch x86_64 -arch arm64 -framework Foundation -framework AVFoundation
 	codesign -s mlichtenberg@me.com lightscript
 
 lightscript.yy.c : lightscript.lex lightscript.tab.h
